@@ -1,0 +1,15 @@
+# Python cache
+__pycache__/
+*.pyc
+
+# Local virtual environments
+.venv/
+venv/
+
+# Evaluation outputs
+data/bakeoff/runs/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+

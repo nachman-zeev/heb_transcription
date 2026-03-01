@@ -1,0 +1,82 @@
+<?xml version="1.0"?>
+<RecordInfo xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xmlns:xsd="http://www.w3.org/2001/XMLSchema">
+  <ReservedTableHasBeenUpdated>false</ReservedTableHasBeenUpdated>
+  <HasUpdatedFromCTI>false</HasUpdatedFromCTI>
+  <RecordGUID>14c4bf78-e2b9-49bc-a2fc-e8d1f0773258</RecordGUID>
+  <ChannelID>100008</ChannelID>
+  <RecordingStatus>1</RecordingStatus>
+  <RowNumber>0</RowNumber>
+  <Reference>00100008005_20260226_1011010924</Reference>
+  <RecordScore>0</RecordScore>
+  <IsPlayed>false</IsPlayed>
+  <Extension>207</Extension>
+  <Direction>1</Direction>
+  <InternalCall>0</InternalCall>
+  <CallerID>247</CallerID>
+  <CalledID />
+  <StartTimeLocal>2026-02-26T10:11:01</StartTimeLocal>
+  <StopTimeLocal>2026-02-26T10:13:57</StopTimeLocal>
+  <StartTimeUTC>2026-02-26T08:11:01Z</StartTimeUTC>
+  <StopTimeUTC>2026-02-26T08:13:57Z</StopTimeUTC>
+  <Duration>175</Duration>
+  <SdkRecordID>0_V38b8566dd3a079ad</SdkRecordID>
+  <EncryptionType>2</EncryptionType>
+  <RecycleFlag>0</RecycleFlag>
+  <FilePath>C:\Records\voice\20260226\207\00100008005_20260226_1011010924_207.mp3</FilePath>
+  <ArichiveFlag>0</ArichiveFlag>
+  <ArchiveCount>0</ArchiveCount>
+  <ServerID>0</ServerID>
+  <ScreenDuration>0</ScreenDuration>
+  <UserID>10</UserID>
+  <GroupID xsi:nil="true" />
+  <GroupName />
+  <UserName>207</UserName>
+  <Tag xsi:nil="true" />
+  <Score xsi:nil="true" />
+  <ScoreID>0</ScoreID>
+  <ScoreType>0</ScoreType>
+  <ScoreCreatorGroupID>0</ScoreCreatorGroupID>
+  <ScreenRecycleFlag>0</ScreenRecycleFlag>
+  <InsertTime>2026-02-26T10:13:57.4516298+02:00</InsertTime>
+  <RecordReserved>
+    <Reference>00100008005_20260226_1011010924</Reference>
+    <ReservedRecordTable xsi:nil="true" />
+  </RecordReserved>
+  <SkillID xsi:nil="true" />
+  <StartTimeMonth>2</StartTimeMonth>
+  <IsIndex>false</IsIndex>
+  <FormID xsi:nil="true" />
+  <ScoresCreator xsi:nil="true" />
+  <ScoresCreateTime xsi:nil="true" />
+  <ScoresScoreType xsi:nil="true" />
+  <ScoreGroupID xsi:nil="true" />
+  <ConnectionIDCount>0</ConnectionIDCount>
+  <Flag1>false</Flag1>
+  <Flag2>false</Flag2>
+  <Flag3>false</Flag3>
+  <Flag4>false</Flag4>
+  <Flag5>false</Flag5>
+  <Flag6>false</Flag6>
+  <Flag7>false</Flag7>
+  <Flag8>false</Flag8>
+  <Flag9>false</Flag9>
+  <Flag10>false</Flag10>
+  <KEKRecordStatus>0</KEKRecordStatus>
+  <KEKScreenStatus>0</KEKScreenStatus>
+  <HoldCount>0</HoldCount>
+  <TransferCount>0</TransferCount>
+  <HoldAbandon>false</HoldAbandon>
+  <HangupSide>0</HangupSide>
+  <ExpireDate xsi:nil="true" />
+  <AgentReviewDate xsi:nil="true" />
+  <QAReviewDate xsi:nil="true" />
+  <QAModificationDate xsi:nil="true" />
+  <CallID>cfc23c86-48f3-4d78-8cfb-d15501ae9409</CallID>
+  <CallType>0</CallType>
+  <QAReviewScoreID xsi:nil="true" />
+  <QAReviewScoreCreator xsi:nil="true" />
+  <QAReviewScoreGroupID xsi:nil="true" />
+  <SDKRecordIDCount>0</SDKRecordIDCount>
+  <HasRAWFile xsi:nil="true" />
+  <ConnType>0</ConnType>
+</RecordInfo>

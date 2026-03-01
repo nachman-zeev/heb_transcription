@@ -1,0 +1,4 @@
+sample_id,split,audio_path,reference_text_path,channel_mode,sample_rate_hz,duration_sec,domain_tag,noise_level,accent_tag
+he_call_0001,dev,C:/data/audio/he_call_0001.wav,C:/data/ref/he_call_0001.txt,multi,8000,302,support,medium,
+he_call_0002,validation,C:/data/audio/he_call_0002.mp3,C:/data/ref/he_call_0002.txt,mono,8000,188,sales,high,
+he_call_0003,holdout,s3://bucket/audio/he_call_0003.wav,s3://bucket/ref/he_call_0003.txt,multi,8000,455,collections,low,

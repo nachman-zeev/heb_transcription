@@ -1,0 +1,27 @@
+stage: 0
+language: he
+quality_targets:
+  # WER/CER are percentage values in [0, 100].
+  # These are initial targets and can be adjusted with your approval.
+  global_wer_max: 14.0
+  global_cer_max: 8.0
+  p95_sample_wer_max: 22.0
+  p95_sample_cer_max: 14.0
+diarization_targets:
+  # Fraction in [0, 1].
+  speaker_attribution_accuracy_min: 0.90
+operational_targets:
+  pipeline_success_rate_min: 0.995
+  retry_rate_max: 0.03
+  queue_timeout_rate_max: 0.01
+latency_targets:
+  # Multipliers relative to audio duration.
+  # Example: 0.8 means processing 10 min audio in <= 8 min.
+  rtf_target_gpu_max: 0.80
+  rtf_target_cpu_max: 2.50
+dataset_minimums:
+  min_call_count: 100
+  min_total_audio_hours: 20
+  min_multi_channel_ratio: 0.30
+  min_noisy_audio_ratio: 0.25
+

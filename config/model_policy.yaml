@@ -1,0 +1,9 @@
+﻿primary_asr_model: ivrit-ai/whisper-large-v3
+language_lock: he
+model_role: primary
+fallback_models:
+  - ivrit-ai/whisper-large-v3-turbo
+  - gpt-4o-transcribe
+notes:
+  - Keep accuracy-first policy: reduce concurrency before downgrading model quality.
+  - Use the same primary model in Stage 1 production worker baseline.
