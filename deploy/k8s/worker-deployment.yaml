@@ -1,0 +1,39 @@
+﻿apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: heb-transcription-worker
+  namespace: heb-transcription
+spec:
+  replicas: 4
+  selector:
+    matchLabels:
+      app: heb-transcription-worker
+  template:
+    metadata:
+      labels:
+        app: heb-transcription-worker
+    spec:
+      containers:
+        - name: worker
+          image: ghcr.io/your-org/heb-transcription-api:latest
+          imagePullPolicy: IfNotPresent
+          command: ["python", "worker.py"]
+          env:
+            - name: APP_ENV
+              value: "prod"
+            - name: PRIMARY_MODEL_ID
+              value: "ivrit-ai/whisper-large-v3"
+            - name: NODE_ID
+              valueFrom:
+                fieldRef:
+                  fieldPath: spec.nodeName
+            - name: DB_URL
+              valueFrom:
+                secretKeyRef:
+                  name: heb-transcription-secrets
+                  key: DB_URL
+            - name: TOKEN_HASH_PEPPER
+              valueFrom:
+                secretKeyRef:
+                  name: heb-transcription-secrets
+                  key: TOKEN_HASH_PEPPER

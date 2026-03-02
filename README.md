@@ -8,23 +8,43 @@ Primary ASR model policy:
 
 - Main model: `ivrit-ai/whisper-large-v3`
 - Language mode: fixed Hebrew (`he`)
-- Runtime script: `scripts/transcription/transcribe_with_ivrit_whisper.py`
 
 Current status:
 
-- Stage 0 is in progress with model decision already locked.
+- Stage 0-10 completed.
+- Release Candidate checks passed (`overall_status=pass`).
 
-## Stage Flow
+## Quick Start (Compose)
 
-1. Stage 0: Data baseline, KPI targets, and primary-model smoke validation
-2. Stage 1: Core MVP backend (auth, ingest, queue, worker, DB)
-3. Stage 2: Hebrew accuracy pipeline hardening (normalization, diarization, alignment)
-4. Stage 3: Full UI + live updates
-5. Stage 4: Scale and hardening
+```powershell
+docker compose build
+docker compose up -d
+```
+
+Enterprise profile (PostgreSQL + scalable workers):
+
+```powershell
+docker compose -f docker-compose.enterprise.yml up -d --build --scale worker=4
+```
+
+## Release Gate
+
+Run full RC check:
+
+```powershell
+python scripts/ops/release_candidate_check.py --repo-root .
+```
+
+Artifacts:
+
+- `data/release/release_candidate_report.json`
+- `data/release/release_candidate_report.md`
 
 ## Folder Layout
 
+- `backend/` - API + DB + worker + static UI app
+- `deploy/` - Kubernetes deployment templates
 - `docs/` - stage specs and operational docs
-- `config/` - tunable project configuration
-- `data/` - dataset manifests and transcript outputs
-- `scripts/` - helper scripts for evaluation and transcription
+- `config/` - deployment and policy templates
+- `scripts/` - helper scripts for evaluation and operations
+- `data/` - runtime outputs/reports/backups

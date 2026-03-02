@@ -1,0 +1,45 @@
+﻿name: ci
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+jobs:
+  backend-checks:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install -r backend/requirements.txt
+
+      - name: Compile check
+        run: |
+          python -m compileall backend scripts
+
+      - name: API smoke (TestClient)
+        run: |
+          python - <<'PY'
+          from fastapi.testclient import TestClient
+          from app.main import app
+
+          c = TestClient(app)
+          r1 = c.get('/health/live')
+          r2 = c.get('/health/ready')
+          r3 = c.get('/health')
+          assert r1.status_code == 200, r1.text
+          assert r2.status_code == 200, r2.text
+          assert r3.status_code == 200, r3.text
+          print('smoke_ok')
+          PY
+        working-directory: backend

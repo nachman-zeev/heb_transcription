@@ -1,0 +1,121 @@
+﻿<!doctype html>
+<html lang="he" dir="rtl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Heb Transcription Console</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Heebo:wght@300;400;500;700;800&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb-a"></div>
+  <div class="bg-orb orb-b"></div>
+
+  <main class="app-wrap">
+    <section id="loginView" class="card login-card">
+      <h1>מערכת תמלול עברית</h1>
+      <p class="subtitle">גישה לחברות עם בידוד מלא וניהול תורים חכם</p>
+      <form id="loginForm" class="form-grid">
+        <label>שם חברה
+          <input id="tenantInput" required placeholder="demo-company" />
+        </label>
+        <label>אימייל
+          <input id="emailInput" type="email" required placeholder="admin@demo.local" />
+        </label>
+        <label>סיסמה
+          <input id="passwordInput" type="password" required placeholder="********" />
+        </label>
+        <button type="submit" class="btn primary">כניסה</button>
+      </form>
+      <p id="loginError" class="error"></p>
+    </section>
+
+    <section id="appView" class="app-shell hidden">
+      <header class="topbar card">
+        <div>
+          <h2 id="tenantTitle">Tenant</h2>
+          <p id="wsStatus" class="chip">Live: disconnected</p>
+        </div>
+        <div class="top-actions">
+          <button id="refreshBtn" class="btn">רענון</button>
+          <button id="logoutBtn" class="btn danger">התנתקות</button>
+        </div>
+      </header>
+
+      <section class="dashboard-grid">
+        <article class="card stat-card">
+          <h3>ניצול חבילה</h3>
+          <p id="usageText" class="stat-main">--</p>
+          <p id="usageSub" class="muted">--</p>
+        </article>
+        <article class="card stat-card">
+          <h3>תור נוכחי</h3>
+          <p id="queueText" class="stat-main">--</p>
+          <p id="queueSub" class="muted">--</p>
+        </article>
+        <article class="card stat-card wide">
+          <div class="row-between">
+            <h3>פעילות</h3>
+            <div class="toggle-group">
+              <button data-period="week" class="period-btn active">שבוע</button>
+              <button data-period="month" class="period-btn">חודש</button>
+            </div>
+          </div>
+          <div id="activityChart" class="activity-chart"></div>
+        </article>
+      </section>
+
+      <section class="card filters-row">
+        <label>מתאריך
+          <input id="dateFrom" type="date" />
+        </label>
+        <label>עד תאריך
+          <input id="dateTo" type="date" />
+        </label>
+        <button id="filterBtn" class="btn">סינון</button>
+        <button id="clearFilterBtn" class="btn ghost">ניקוי</button>
+      </section>
+
+      <section class="workspace-grid">
+        <aside class="card jobs-panel">
+          <h3>שיחות</h3>
+          <div id="jobsList" class="jobs-list"></div>
+        </aside>
+
+        <section class="card conversation-panel">
+          <div class="row-between">
+            <h3 id="selectedJobTitle">בחר שיחה</h3>
+            <div class="toggle-group">
+              <button id="tabTranscript" class="period-btn active">נגן + תמלול</button>
+              <button id="tabDetails" class="period-btn">פרטי שיחה</button>
+            </div>
+          </div>
+
+          <div id="transcriptView" class="tab-view">
+            <audio id="audioPlayer" controls class="player"></audio>
+            <div class="row-between mt8">
+              <label>חיפוש מילה בתמלול
+                <input id="wordSearch" placeholder="הקלד מילה" />
+              </label>
+            </div>
+            <div id="transcriptContainer" class="transcript-container"></div>
+          </div>
+
+          <div id="detailsView" class="tab-view hidden">
+            <div id="detailsGrid" class="details-grid"></div>
+            <div class="export-row">
+              <button data-export="txt" class="btn">TXT</button>
+              <button data-export="srt" class="btn">SRT</button>
+              <button data-export="docx" class="btn">DOCX</button>
+            </div>
+          </div>
+        </section>
+      </section>
+    </section>
+  </main>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

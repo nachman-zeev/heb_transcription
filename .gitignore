@@ -1,4 +1,4 @@
-# Python cache
+﻿# Python cache
 __pycache__/
 *.pyc
 
@@ -9,7 +9,38 @@ venv/
 # Evaluation outputs
 data/bakeoff/runs/
 
+# Backup artifacts
+data/backups/
+
+# Backend runtime files
+backend/__pycache__/
+backend/app/__pycache__/
+backend/data/
+backend/*.db
+backend/*.sqlite
+*.log
+
 # OS / editor
 .DS_Store
 Thumbs.db
 
+# Restore drill artifacts
+data/restore_drills/
+
+# Local alert policy overrides
+config/alert_policy.json
+
+
+# Operational snapshot artifacts
+data/ops/
+data/backups_stage7_test/
+data/restore_drills_stage7_test/
+
+
+# Local migration test DB
+data/*.db
+
+
+data/release/
+data/backups_rc/
+backend/data/rc_*.db

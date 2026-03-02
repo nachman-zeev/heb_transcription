@@ -1,0 +1,59 @@
+﻿version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: heb_transcription_pg
+    environment:
+      POSTGRES_DB: transcription
+      POSTGRES_USER: transcription
+      POSTGRES_PASSWORD: transcription_dev_password
+    ports:
+      - "5432:5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U transcription -d transcription"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: heb_transcription_api_enterprise
+    env_file:
+      - ./config/production.env.example
+    environment:
+      DB_URL: postgresql+psycopg://transcription:transcription_dev_password@postgres:5432/transcription
+      CORS_ALLOWED_ORIGINS: http://localhost:8080
+      NODE_ID: api-node-1
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./Recordings Examples:/recordings:ro
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    env_file:
+      - ./config/production.env.example
+    environment:
+      DB_URL: postgresql+psycopg://transcription:transcription_dev_password@postgres:5432/transcription
+      NODE_ID: worker-node
+    command: ["python", "worker.py"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    volumes:
+      - ./Recordings Examples:/recordings:ro
+    restart: unless-stopped
+
+volumes:
+  pg_data:

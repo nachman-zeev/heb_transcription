@@ -1,0 +1,46 @@
+﻿version: "3.9"
+
+services:
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: heb_transcription_api
+    env_file:
+      - ./config/production.env.example
+    environment:
+      - DB_URL=sqlite:///./data/app.db
+      - CORS_ALLOWED_ORIGINS=http://localhost:8080
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./backend/data:/app/data
+      - ./Recordings Examples:/recordings:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8080/health/live', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+
+  worker_manager:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: heb_transcription_worker_manager
+    env_file:
+      - ./config/production.env.example
+    environment:
+      - DB_URL=sqlite:///./data/app.db
+    command: ["python", "worker_manager.py", "--min-workers", "1"]
+    volumes:
+      - ./backend/data:/app/data
+      - ./Recordings Examples:/recordings:ro
+    depends_on:
+      api:
+        condition: service_healthy
+    restart: unless-stopped
+
+networks:
+  default:
+    name: heb_transcription_net
