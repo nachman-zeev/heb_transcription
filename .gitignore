@@ -44,3 +44,8 @@ data/*.db
 data/release/
 data/backups_rc/
 backend/data/rc_*.db
+
+# Sensitive/large local datasets
+Recordings Examples/
+data/transcriptions/
+data/bakeoff/references/
