@@ -45,6 +45,9 @@ data/release/
 data/backups_rc/
 backend/data/rc_*.db
 
+# Local runtime process metadata
+data/local_runtime/
+
 # Sensitive/large local datasets
 Recordings Examples/
 data/transcriptions/
