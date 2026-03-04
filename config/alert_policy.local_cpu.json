@@ -1,0 +1,9 @@
+{
+  "max_queued": 500,
+  "max_retry_wait": 200,
+  "max_dead_letter": 20,
+  "max_error_ratio": 0.2,
+  "min_workers_online": 0,
+  "max_cpu_percent": 95.0,
+  "max_ram_percent": 95.0
+}

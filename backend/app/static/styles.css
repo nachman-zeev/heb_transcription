@@ -59,6 +59,12 @@ body {
 .subtitle { margin-top: 0; color: var(--muted); }
 .form-grid { display: grid; gap: 10px; }
 label { display: grid; gap: 4px; font-weight: 500; }
+small.field-help {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--muted);
+  margin-top: 2px;
+}
 input {
   border: 1px solid #b8c8c0;
   border-radius: 10px;
@@ -179,6 +185,37 @@ input {
 .conversation-panel { padding: 12px; display: flex; flex-direction: column; }
 .tab-view { margin-top: 10px; }
 .player { width: 100%; }
+.tx-progress {
+  margin-top: 8px;
+  border: 1px solid #d7e3dc;
+  border-radius: 10px;
+  padding: 8px 10px;
+  background: #f7fcf9;
+}
+.tx-progress-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #175240;
+}
+.tx-progress-track {
+  margin-top: 6px;
+  width: 100%;
+  height: 10px;
+  border-radius: 999px;
+  background: #deebe4;
+  overflow: hidden;
+}
+.tx-progress-bar {
+  width: 0%;
+  height: 100%;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0d8a6f, #5cc99f);
+  transition: width 240ms ease;
+}
 .mt8 { margin-top: 8px; }
 
 .transcript-container {

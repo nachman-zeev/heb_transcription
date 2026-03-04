@@ -1,0 +1,22 @@
+{
+  "manifest": "data\\bakeoff\\dataset_manifest.csv",
+  "total_samples": 70,
+  "references_exist": 70,
+  "references_non_empty": 36,
+  "references_non_empty_percent": 51.43,
+  "missing_or_empty_count": 34,
+  "by_split": {
+    "dev": {
+      "total": 50,
+      "non_empty_refs": 26
+    },
+    "validation": {
+      "total": 12,
+      "non_empty_refs": 6
+    },
+    "holdout": {
+      "total": 8,
+      "non_empty_refs": 4
+    }
+  }
+}

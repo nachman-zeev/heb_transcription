@@ -4,7 +4,18 @@
   userEmail: '',
   jobs: [],
   selectedJob: null,
-  activeWordEl: null,
+  selectedJobPollTimer: null,
+  selectedJobPollInFlight: false,
+  playbackTickTimer: null,
+  txProgressTimer: null,
+  txProgressDisplayPct: 0,
+  txProgressTargetPct: 0,
+  txProgressJobId: '',
+  txProgressLabel: '',
+  txProgressStatus: '',
+  wordTimeline: [],
+  lastCompletionNoticeJobId: '',
+  activeWordEls: new Set(),
   period: 'week',
   ws: null,
 };
@@ -13,9 +24,14 @@ const el = {
   loginView: document.getElementById('loginView'),
   appView: document.getElementById('appView'),
   loginForm: document.getElementById('loginForm'),
+  bootstrapForm: document.getElementById('bootstrapForm'),
   tenantInput: document.getElementById('tenantInput'),
   emailInput: document.getElementById('emailInput'),
   passwordInput: document.getElementById('passwordInput'),
+  bootstrapTenantInput: document.getElementById('bootstrapTenantInput'),
+  bootstrapEmailInput: document.getElementById('bootstrapEmailInput'),
+  bootstrapPasswordInput: document.getElementById('bootstrapPasswordInput'),
+  bootstrapMsg: document.getElementById('bootstrapMsg'),
   loginError: document.getElementById('loginError'),
   tenantTitle: document.getElementById('tenantTitle'),
   wsStatus: document.getElementById('wsStatus'),
@@ -32,11 +48,21 @@ const el = {
   clearFilterBtn: document.getElementById('clearFilterBtn'),
   jobsList: document.getElementById('jobsList'),
   selectedJobTitle: document.getElementById('selectedJobTitle'),
+  selectedJobStatus: document.getElementById('selectedJobStatus'),
   tabTranscript: document.getElementById('tabTranscript'),
   tabDetails: document.getElementById('tabDetails'),
   transcriptView: document.getElementById('transcriptView'),
   detailsView: document.getElementById('detailsView'),
+  uploadAudioInput: document.getElementById('uploadAudioInput'),
+  uploadPriorityInput: document.getElementById('uploadPriorityInput'),
+  uploadPriorityHelp: document.getElementById('uploadPriorityHelp'),
+  uploadJobBtn: document.getElementById('uploadJobBtn'),
+  uploadJobMsg: document.getElementById('uploadJobMsg'),
   audioPlayer: document.getElementById('audioPlayer'),
+  transcriptionProgressWrap: document.getElementById('transcriptionProgressWrap'),
+  transcriptionProgressLabel: document.getElementById('transcriptionProgressLabel'),
+  transcriptionProgressPct: document.getElementById('transcriptionProgressPct'),
+  transcriptionProgressBar: document.getElementById('transcriptionProgressBar'),
   transcriptContainer: document.getElementById('transcriptContainer'),
   wordSearch: document.getElementById('wordSearch'),
   detailsGrid: document.getElementById('detailsGrid'),
@@ -44,7 +70,10 @@ const el = {
 
 async function api(path, options = {}) {
   const headers = options.headers || {};
-  headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  const isFormData = typeof FormData !== 'undefined' && options.body instanceof FormData;
+  if (!isFormData) {
+    headers['Content-Type'] = headers['Content-Type'] || 'application/json';
+  }
   if (state.token) {
     headers['Authorization'] = `Bearer ${state.token}`;
   }
@@ -54,7 +83,7 @@ async function api(path, options = {}) {
     let detail = `HTTP ${resp.status}`;
     try {
       const body = await resp.json();
-      detail = body.detail || JSON.stringify(body);
+      detail = formatApiErrorDetail(body.detail ?? body);
     } catch (_) {}
     throw new Error(detail);
   }
@@ -64,6 +93,36 @@ async function api(path, options = {}) {
     return resp.json();
   }
   return resp;
+}
+
+function formatApiErrorDetail(detail) {
+  if (detail == null) return 'שגיאה לא ידועה';
+  if (typeof detail === 'string') return detail;
+
+  if (Array.isArray(detail)) {
+    const parts = detail.map((item) => {
+      if (item && typeof item === 'object') {
+        const loc = Array.isArray(item.loc) ? item.loc.join('.') : '';
+        const msg = item.msg ? String(item.msg) : JSON.stringify(item);
+        return loc ? `${loc}: ${msg}` : msg;
+      }
+      return String(item);
+    });
+    return parts.join(' | ');
+  }
+
+  if (typeof detail === 'object') {
+    if (typeof detail.message === 'string' && detail.message.trim()) {
+      return detail.message;
+    }
+    try {
+      return JSON.stringify(detail);
+    } catch (_) {
+      return String(detail);
+    }
+  }
+
+  return String(detail);
 }
 
 function fmtDate(value) {
@@ -85,6 +144,288 @@ function fmtDurationSec(sec) {
   return `${m}:${String(s).padStart(2, '0')}`;
 }
 
+function statusLabel(status) {
+  const map = {
+    queued: 'ממתין בתור',
+    processing: 'בתמלול',
+    retry_wait: 'ממתין לניסיון חוזר',
+    completed: 'הושלם',
+    failed: 'נכשל',
+    dead_letter: 'נכשל סופית',
+  };
+  return map[status] || status || '--';
+}
+
+function isTerminalStatus(status) {
+  return status === 'completed' || status === 'failed' || status === 'dead_letter';
+}
+
+function clamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+function collectChannelProgress(job) {
+  const channels = job?.channels || [];
+  const total = channels.length || Number(job?.source_channel_count || 0) || 0;
+  const completed = channels.filter((c) => c.status === 'completed').length;
+  const processing = channels.filter((c) => c.status === 'processing');
+  const failed = channels.filter((c) => c.status === 'failed').length;
+  return {
+    total,
+    completed,
+    processingCount: processing.length,
+    processingChannel: processing.length ? Number(processing[0].channel_index) + 1 : 0,
+    failed,
+  };
+}
+
+function buildTranscriptionProgress(job) {
+  if (!job) {
+    return { show: false, pct: 0, label: 'סטטוס Job: --' };
+  }
+
+  const status = String(job.status || '');
+  const channel = collectChannelProgress(job);
+
+  if (status === 'completed') {
+    return {
+      show: false,
+      pct: 100,
+      label: `הסתיים בהצלחה: ${fmtDate(job.completed_at)}`,
+      statusText: `סטטוס Job: הושלם | הסתיים: ${fmtDate(job.completed_at)}`,
+    };
+  }
+  if (status === 'failed' || status === 'dead_letter') {
+    const err = String(job.error_message || '').trim();
+    return {
+      show: false,
+      pct: 100,
+      label: statusLabel(status),
+      statusText: `סטטוס Job: ${statusLabel(status)}${err ? ` | שגיאה: ${err}` : ''}`,
+    };
+  }
+  if (status === 'retry_wait') {
+    const retryAt = job.next_attempt_at ? fmtDate(job.next_attempt_at) : 'בקרוב';
+    return {
+      show: true,
+      pct: 4,
+      label: `ממתין לניסיון חוזר: ${retryAt}`,
+      statusText: `סטטוס Job: ממתין לניסיון חוזר | ניסיון ${Number(job.retry_count || 0) + 1}/${Number(job.max_retries || 0) + 1}`,
+    };
+  }
+  if (status === 'queued') {
+    const channelText = channel.total > 0 ? ` | ערוצים: ${channel.completed}/${channel.total}` : '';
+    return {
+      show: true,
+      pct: 2,
+      label: 'ממתין בתור להתחלת תמלול',
+      statusText: `סטטוס Job: ממתין בתור${channelText}`,
+    };
+  }
+
+  // processing and any unknown non-terminal state
+  let pct = 12;
+  if (channel.total > 0) {
+    const processingWeight = channel.processingCount > 0 ? 0.45 : 0.15;
+    pct = ((channel.completed + processingWeight) / channel.total) * 100;
+  }
+  pct = Math.round(clamp(pct, 8, 96));
+
+  const stage = channel.processingChannel > 0
+    ? `מתמלל ערוץ ${channel.processingChannel} מתוך ${channel.total || '?'}`
+    : 'התמלול בתהליך';
+  const channelText = channel.total > 0 ? ` | הושלמו ${channel.completed}/${channel.total} ערוצים` : '';
+  const failedText = channel.failed > 0 ? ` | ערוצים שנכשלו: ${channel.failed}` : '';
+
+  return {
+    show: true,
+    pct,
+    label: `${stage}${channelText}`,
+    statusText: `סטטוס Job: בתמלול | ${stage}${channelText}${failedText}`,
+  };
+}
+
+function updateTranscriptionProgress(job) {
+  if (!el.transcriptionProgressWrap || !el.transcriptionProgressBar || !el.transcriptionProgressLabel || !el.transcriptionProgressPct) {
+    return;
+  }
+
+  const render = (valuePct, labelText) => {
+    const pct = clamp(Math.round(Number(valuePct || 0)), 0, 100);
+    el.transcriptionProgressWrap.classList.remove('hidden');
+    el.transcriptionProgressLabel.textContent = labelText || 'התמלול בתהליך';
+    el.transcriptionProgressPct.textContent = `${pct}%`;
+    el.transcriptionProgressBar.style.width = `${pct}%`;
+    const track = el.transcriptionProgressBar.parentElement;
+    if (track) track.setAttribute('aria-valuenow', String(pct));
+  };
+
+  const stopTicker = (reset = false) => {
+    if (state.txProgressTimer) {
+      clearInterval(state.txProgressTimer);
+      state.txProgressTimer = null;
+    }
+    if (reset) {
+      state.txProgressDisplayPct = 0;
+      state.txProgressTargetPct = 0;
+      state.txProgressJobId = '';
+      state.txProgressLabel = '';
+      state.txProgressStatus = '';
+    }
+  };
+
+  const startTicker = () => {
+    if (state.txProgressTimer) return;
+    state.txProgressTimer = setInterval(() => {
+      if (!state.selectedJob || state.selectedJob.id !== state.txProgressJobId || isTerminalStatus(state.selectedJob.status)) {
+        stopTicker();
+        return;
+      }
+
+      // Keep progress lively between backend polling updates.
+      if (state.txProgressDisplayPct >= state.txProgressTargetPct - 0.25) {
+        if (state.txProgressStatus === 'processing') {
+          state.txProgressTargetPct = Math.min(95, state.txProgressTargetPct + 0.9);
+        } else if (state.txProgressStatus === 'queued') {
+          state.txProgressTargetPct = Math.min(9, state.txProgressTargetPct + 0.25);
+        } else if (state.txProgressStatus === 'retry_wait') {
+          state.txProgressTargetPct = Math.min(15, state.txProgressTargetPct + 0.35);
+        }
+      }
+
+      const delta = state.txProgressTargetPct - state.txProgressDisplayPct;
+      if (delta > 0.01) {
+        const step = clamp(delta, 0.4, 1.8);
+        state.txProgressDisplayPct = clamp(state.txProgressDisplayPct + step, 0, 100);
+      }
+
+      render(state.txProgressDisplayPct, state.txProgressLabel);
+    }, 120);
+  };
+
+  const progress = buildTranscriptionProgress(job);
+  if (!progress.show) {
+    stopTicker(true);
+    el.transcriptionProgressWrap.classList.add('hidden');
+    el.transcriptionProgressLabel.textContent = progress.label || '';
+    el.transcriptionProgressPct.textContent = '0%';
+    el.transcriptionProgressBar.style.width = '0%';
+    const track = el.transcriptionProgressBar.parentElement;
+    if (track) track.setAttribute('aria-valuenow', '0');
+    return;
+  }
+
+  const requestedPct = clamp(Number(progress.pct || 0), 0, 100);
+  const isNewJob = state.txProgressJobId !== job.id;
+  if (isNewJob) {
+    state.txProgressDisplayPct = 0;
+    state.txProgressTargetPct = 0;
+  }
+
+  state.txProgressJobId = job.id;
+  state.txProgressLabel = progress.label || 'התמלול בתהליך';
+  state.txProgressStatus = String(job.status || '');
+
+  // Limit abrupt target jumps so UI stays smooth (max ~18% per backend update).
+  const cappedTarget = Math.min(requestedPct, state.txProgressTargetPct + 18);
+  state.txProgressTargetPct = Math.max(state.txProgressTargetPct, cappedTarget);
+  state.txProgressTargetPct = clamp(state.txProgressTargetPct, 0, 100);
+
+  if (state.txProgressDisplayPct <= 0 && state.txProgressTargetPct < 4) {
+    state.txProgressTargetPct = 4;
+  }
+
+  render(state.txProgressDisplayPct, state.txProgressLabel);
+  startTicker();
+}
+
+function updatePriorityHint() {
+  if (!el.uploadPriorityInput || !el.uploadPriorityHelp) return;
+  const value = clamp(parseInt(el.uploadPriorityInput.value || '100', 10) || 100, 1, 1000);
+  el.uploadPriorityInput.value = String(value);
+  el.uploadPriorityHelp.textContent = `עדיפות נוכחית: ${value} | מספר קטן = תור מוקדם יותר (1 הכי דחוף).`;
+}
+
+function updateSelectedJobStatus(job) {
+  if (!el.selectedJobStatus) return;
+  if (!job) {
+    el.selectedJobStatus.textContent = 'סטטוס Job: --';
+    updateTranscriptionProgress(null);
+    return;
+  }
+  const progress = buildTranscriptionProgress(job);
+  el.selectedJobStatus.textContent = progress.statusText || `סטטוס Job: ${statusLabel(job.status)}`;
+  updateTranscriptionProgress(job);
+}
+
+function isNumericLikeToken(token) {
+  const t = String(token || '').trim();
+  return !!t && /^[0-9.,:+\-/%()]+$/.test(t);
+}
+
+function normalizeWordsForDisplay(words, durationSec) {
+  const items = (words || []).map((w) => {
+    const token = String(w.text || '').trim();
+    if (!token) return null;
+
+    const startRaw = Number(w.start_sec);
+    const endRaw = Number(w.end_sec);
+    const hasStart = Number.isFinite(startRaw);
+    const hasEnd = Number.isFinite(endRaw);
+    return {
+      word: w,
+      token,
+      start: hasStart ? startRaw : null,
+      end: hasEnd ? endRaw : null,
+    };
+  }).filter(Boolean);
+
+  if (!items.length) return [];
+
+  const observedMax = items.reduce((mx, it) => {
+    const s = it.start ?? 0;
+    const e = it.end ?? s;
+    return Math.max(mx, s, e);
+  }, 0);
+  const duration = Math.max(
+    Number.isFinite(Number(durationSec)) ? Number(durationSec) : 0,
+    observedMax,
+    0.2
+  );
+
+  let prevEnd = 0;
+  return items.map((it) => {
+    let start = it.start;
+    let end = it.end;
+
+    if (start == null && end != null) start = end;
+    if (start == null) start = prevEnd;
+    if (end == null) end = start;
+    if (end < start) end = start;
+
+    start = Math.max(0, Math.min(start, duration));
+    end = Math.max(start, Math.min(end, duration));
+
+    if (end <= start) {
+      const minWidth = isNumericLikeToken(it.token) ? 0.08 : 0.05;
+      end = Math.min(duration, start + minWidth);
+    }
+
+    if (end <= start && start > 0) {
+      start = Math.max(0, start - 0.02);
+      end = Math.min(duration, start + 0.04);
+    }
+
+    prevEnd = Math.max(prevEnd, end);
+    return {
+      ...it.word,
+      text: it.token,
+      display_start_sec: Number(start.toFixed(6)),
+      display_end_sec: Number(end.toFixed(6)),
+    };
+  });
+}
+
 async function login(evt) {
   evt.preventDefault();
   el.loginError.textContent = '';
@@ -104,6 +445,32 @@ async function login(evt) {
   }
 }
 
+async function runBootstrap(evt) {
+  evt.preventDefault();
+  if (!el.bootstrapForm) return;
+  el.bootstrapMsg.textContent = '';
+  try {
+    const tenant_name = el.bootstrapTenantInput.value.trim();
+    const email = el.bootstrapEmailInput.value.trim();
+    const password = el.bootstrapPasswordInput.value;
+    await api('/auth/bootstrap', {
+      method: 'POST',
+      body: JSON.stringify({ tenant_name, email, password }),
+    });
+    el.bootstrapMsg.textContent = 'Bootstrap הושלם. אפשר להתחבר עם הפרטים שהזנת.';
+    el.tenantInput.value = tenant_name;
+    el.emailInput.value = email;
+    el.passwordInput.value = password;
+  } catch (err) {
+    const message = String(err.message || err);
+    if (message.includes('Bootstrap already completed')) {
+      el.bootstrapMsg.textContent = 'המערכת כבר אותחלה בעבר. יש להתחבר עם משתמש קיים.';
+    } else {
+      el.bootstrapMsg.textContent = `שגיאה: ${message}`;
+    }
+  }
+}
+
 async function enterApp() {
   const me = await api('/auth/me');
   state.tenantName = me.tenant_name;
@@ -118,6 +485,9 @@ async function enterApp() {
 }
 
 function logout() {
+  stopSelectedJobPolling();
+  stopPlaybackTicker();
+  updateTranscriptionProgress(null);
   state.token = '';
   localStorage.removeItem('hb_token');
   if (state.ws) {
@@ -180,9 +550,13 @@ function renderJobsList() {
     const item = document.createElement('div');
     item.className = 'job-item';
     if (state.selectedJob && state.selectedJob.id === job.id) item.classList.add('active');
+    const channels = job.channels || [];
+    const totalChannels = channels.length || Number(job.source_channel_count || 0) || 0;
+    const doneChannels = channels.filter((c) => c.status === 'completed').length;
+    const channelMeta = totalChannels > 0 ? ` | ערוצים: ${doneChannels}/${totalChannels}` : '';
     item.innerHTML = `
       <div><strong>${job.source_filename}</strong></div>
-      <div class="meta">${job.status} | ${fmtDate(job.queued_at)}</div>
+      <div class="meta">${statusLabel(job.status)} | ${fmtDate(job.queued_at)}${channelMeta}</div>
       <div class="meta">משך הקלטה: ${fmtDurationSec(job.source_duration_sec)} | מילים: ${job.word_count || 0}</div>
     `;
     item.onclick = () => selectJob(job.id);
@@ -190,16 +564,94 @@ function renderJobsList() {
   });
 }
 
+function stopSelectedJobPolling() {
+  if (state.selectedJobPollTimer) {
+    clearInterval(state.selectedJobPollTimer);
+    state.selectedJobPollTimer = null;
+  }
+  state.selectedJobPollInFlight = false;
+}
+
+function stopPlaybackTicker() {
+  if (state.playbackTickTimer) {
+    cancelAnimationFrame(state.playbackTickTimer);
+    state.playbackTickTimer = null;
+  }
+}
+
+function startPlaybackTicker() {
+  stopPlaybackTicker();
+  const tick = () => {
+    if (el.audioPlayer.paused || el.audioPlayer.ended) {
+      state.playbackTickTimer = null;
+      return;
+    }
+    updateActiveWordHighlight();
+    state.playbackTickTimer = requestAnimationFrame(tick);
+  };
+  state.playbackTickTimer = requestAnimationFrame(tick);
+}
+
+async function pollSelectedJobOnce() {
+  if (!state.selectedJob || state.selectedJobPollInFlight) return;
+  if (isTerminalStatus(state.selectedJob.status)) {
+    stopSelectedJobPolling();
+    return;
+  }
+
+  state.selectedJobPollInFlight = true;
+  try {
+    const latest = await api(`/jobs/${state.selectedJob.id}`);
+    if (!state.selectedJob || latest.id !== state.selectedJob.id) return;
+
+    const prevStatus = state.selectedJob.status;
+    const prevWordCount = Number(state.selectedJob.word_count || 0);
+    state.selectedJob = latest;
+    updateSelectedJobStatus(latest);
+    renderJobsList();
+
+    const latestWordCount = Number(latest.word_count || 0);
+    if (latest.status !== prevStatus || latestWordCount !== prevWordCount) {
+      renderTranscript(latest);
+      renderDetails(latest);
+    }
+
+    if (isTerminalStatus(latest.status)) {
+      stopSelectedJobPolling();
+      if (latest.id !== state.lastCompletionNoticeJobId) {
+        state.lastCompletionNoticeJobId = latest.id;
+        el.uploadJobMsg.textContent = `Job ${statusLabel(latest.status)}: ${latest.source_filename}`;
+      }
+    }
+  } catch (_) {
+    // Ignore temporary polling failures and retry on next tick.
+  } finally {
+    state.selectedJobPollInFlight = false;
+  }
+}
+
+function startSelectedJobPolling() {
+  stopSelectedJobPolling();
+  if (!state.selectedJob || isTerminalStatus(state.selectedJob.status)) return;
+  state.selectedJobPollTimer = setInterval(() => {
+    pollSelectedJobOnce();
+  }, 3000);
+}
+
 async function selectJob(jobId) {
+  stopPlaybackTicker();
   const job = await api(`/jobs/${jobId}`);
   state.selectedJob = job;
   el.selectedJobTitle.textContent = job.source_filename;
+  updateSelectedJobStatus(job);
 
   renderJobsList();
   renderTranscript(job);
   renderDetails(job);
   el.audioPlayer.src = `/jobs/${job.id}/audio-public?token=${encodeURIComponent(state.token)}`;
   el.audioPlayer.load();
+  updateActiveWordHighlight();
+  startSelectedJobPolling();
 }
 
 function speakerClass(label) {
@@ -209,7 +661,8 @@ function speakerClass(label) {
 
 function renderTranscript(job) {
   el.transcriptContainer.innerHTML = '';
-  state.activeWordEl = null;
+  state.activeWordEls = new Set();
+  state.wordTimeline = [];
 
   job.channels.forEach((ch) => {
     const block = document.createElement('div');
@@ -221,28 +674,39 @@ function renderTranscript(job) {
     block.appendChild(title);
 
     const wordsWrap = document.createElement('div');
-    (ch.words || []).forEach((w) => {
+    const words = normalizeWordsForDisplay(ch.words || [], job.source_duration_sec);
+    words.forEach((w) => {
       const span = document.createElement('span');
       span.className = `word ${speakerClass(w.speaker_label)}`;
       span.textContent = w.text;
-      span.dataset.start = String(w.start_sec || 0);
-      span.dataset.end = String(w.end_sec || w.start_sec || 0);
-      span.title = `${w.speaker_label || 'spk?'} | ${fmtDurationSec(w.start_sec)} - ${fmtDurationSec(w.end_sec)}`;
+      span.dataset.start = String(w.display_start_sec || 0);
+      span.dataset.end = String(w.display_end_sec || w.display_start_sec || 0);
+      span.dataset.token = String(w.text || '');
+      span.title = `${w.speaker_label || 'spk?'} | ${fmtDurationSec(w.display_start_sec)} - ${fmtDurationSec(w.display_end_sec)}`;
       span.onclick = () => {
         el.audioPlayer.currentTime = parseFloat(span.dataset.start || '0');
         el.audioPlayer.play();
       };
       wordsWrap.appendChild(span);
       wordsWrap.append(' ');
+
+      state.wordTimeline.push({
+        el: span,
+        start: parseFloat(span.dataset.start || '0'),
+        end: parseFloat(span.dataset.end || '0'),
+        token: span.dataset.token || '',
+      });
     });
 
-    if (!ch.words || ch.words.length === 0) {
+    if (!words.length) {
       wordsWrap.textContent = ch.transcript_text || '[אין טקסט]';
     }
 
     block.appendChild(wordsWrap);
     el.transcriptContainer.appendChild(block);
   });
+
+  state.wordTimeline.sort((a, b) => a.start - b.start || a.end - b.end);
 }
 
 function renderDetails(job) {
@@ -270,26 +734,37 @@ function renderDetails(job) {
 
 function updateActiveWordHighlight() {
   const t = el.audioPlayer.currentTime || 0;
-  const words = el.transcriptContainer.querySelectorAll('.word');
-  let active = null;
+  const words = state.wordTimeline || [];
+  const activeNow = new Set();
+  let firstActive = null;
 
   for (const w of words) {
-    const s = parseFloat(w.dataset.start || '0');
-    const e = parseFloat(w.dataset.end || '0');
-    if (t >= s && t <= e + 0.02) {
-      active = w;
-      break;
+    const s = w.start;
+    const e = w.end;
+    const token = w.token;
+    const rightPad = isNumericLikeToken(token) ? 0.12 : 0.05;
+    if (t >= s - 0.02 && t <= e + rightPad) {
+      activeNow.add(w.el);
+      if (!firstActive) firstActive = w.el;
     }
   }
 
-  if (state.activeWordEl && state.activeWordEl !== active) {
-    state.activeWordEl.classList.remove('active');
+  for (const prev of state.activeWordEls) {
+    if (!activeNow.has(prev)) {
+      prev.classList.remove('active');
+    }
   }
-  if (active && active !== state.activeWordEl) {
-    active.classList.add('active');
-    active.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+
+  for (const cur of activeNow) {
+    if (!cur.classList.contains('active')) {
+      cur.classList.add('active');
+    }
   }
-  state.activeWordEl = active;
+
+  if (firstActive && !state.activeWordEls.has(firstActive)) {
+    firstActive.scrollIntoView({ block: 'nearest', inline: 'nearest' });
+  }
+  state.activeWordEls = activeNow;
 }
 
 function applyWordSearch() {
@@ -330,6 +805,39 @@ async function downloadExport(format) {
   URL.revokeObjectURL(url);
 }
 
+async function createJobByUpload() {
+  if (!el.uploadAudioInput || !el.uploadJobBtn) return;
+  el.uploadJobMsg.textContent = '';
+
+  const file = el.uploadAudioInput.files && el.uploadAudioInput.files[0];
+  if (!file) {
+    el.uploadJobMsg.textContent = 'בחר קובץ אודיו (.wav או .mp3)';
+    return;
+  }
+
+  updatePriorityHint();
+  const priority = clamp(parseInt(el.uploadPriorityInput.value || '100', 10) || 100, 1, 1000);
+  const fd = new FormData();
+  fd.append('file', file);
+  fd.append('priority', String(priority));
+
+  el.uploadJobBtn.disabled = true;
+  try {
+    const out = await api('/jobs/upload', {
+      method: 'POST',
+      body: fd,
+    });
+    el.uploadJobMsg.textContent = `נוצר Job בהצלחה: ${out.id}`;
+    el.uploadAudioInput.value = '';
+    await loadJobs();
+    await selectJob(out.id);
+  } catch (err) {
+    el.uploadJobMsg.textContent = `שגיאה ביצירת Job: ${err.message}`;
+  } finally {
+    el.uploadJobBtn.disabled = false;
+  }
+}
+
 function bindRealtime() {
   if (state.ws) {
     state.ws.close();
@@ -362,8 +870,18 @@ function bindRealtime() {
 
 function bindEvents() {
   el.loginForm.addEventListener('submit', login);
+  if (el.bootstrapForm) {
+    el.bootstrapForm.addEventListener('submit', runBootstrap);
+  }
   el.logoutBtn.addEventListener('click', logout);
   el.refreshBtn.addEventListener('click', refreshAll);
+  if (el.uploadJobBtn) {
+    el.uploadJobBtn.addEventListener('click', createJobByUpload);
+  }
+  if (el.uploadPriorityInput) {
+    el.uploadPriorityInput.addEventListener('input', updatePriorityHint);
+    el.uploadPriorityInput.addEventListener('change', updatePriorityHint);
+  }
   el.filterBtn.addEventListener('click', loadJobs);
   el.clearFilterBtn.addEventListener('click', () => {
     el.dateFrom.value = '';
@@ -371,6 +889,22 @@ function bindEvents() {
     loadJobs();
   });
   el.audioPlayer.addEventListener('timeupdate', updateActiveWordHighlight);
+  el.audioPlayer.addEventListener('play', () => {
+    updateActiveWordHighlight();
+    startPlaybackTicker();
+  });
+  el.audioPlayer.addEventListener('pause', () => {
+    stopPlaybackTicker();
+    updateActiveWordHighlight();
+  });
+  el.audioPlayer.addEventListener('ended', () => {
+    stopPlaybackTicker();
+    updateActiveWordHighlight();
+  });
+  el.audioPlayer.addEventListener('loadedmetadata', updateActiveWordHighlight);
+  el.audioPlayer.addEventListener('loadeddata', updateActiveWordHighlight);
+  el.audioPlayer.addEventListener('seeking', updateActiveWordHighlight);
+  el.audioPlayer.addEventListener('seeked', updateActiveWordHighlight);
   el.wordSearch.addEventListener('input', applyWordSearch);
   el.tabTranscript.addEventListener('click', () => activateTab('transcript'));
   el.tabDetails.addEventListener('click', () => activateTab('details'));
@@ -391,6 +925,9 @@ function bindEvents() {
 
 async function bootstrap() {
   bindEvents();
+  updatePriorityHint();
+  updateSelectedJobStatus(null);
+  updateTranscriptionProgress(null);
   if (state.token) {
     try {
       await enterApp();

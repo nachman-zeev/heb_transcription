@@ -3,6 +3,24 @@
 ## Current Stage
 
 - Stage 10: Implemented (Project implementation phases completed; awaiting your release approval)
+- Stage 10+: Active execution mode is `Local-First (CPU)` on current workstation.
+- Execution plan reference: `docs/LOCAL_STAGE10_CPU_PLAN_HE.md`
+- Local CPU validation milestone: 3/3 E2E acceptance runs passed (API + Worker + exports).
+- Local CPU batch status: broad set `8/10`, CPU-safe short set `10/10`.
+- Extended local batches: `20/20` (shortlist-20) and `20/20` (missing-shortest-20) passed.
+- KPI readiness: references non-empty `36/70` (draft-assisted), still pending human review for formal WER/CER.
+- Scoring pipeline self-check passed (`36` samples scored), but this is not a formal KPI gate yet.
+
+## Runtime Hygiene (No Loose Ends)
+
+- Rule: do not leave background windows/jobs open after maintenance actions.
+- Always keep exactly one local API process and one local worker process unless explicitly requested otherwise.
+- Verified on **2026-03-04 14:26 (Asia/Jerusalem)**:
+- Active API process: `python -m uvicorn app.main:app --host 127.0.0.1 --port 8090` (PID `21076`).
+- Active worker process: `python worker.py --node-id local-cpu-node` (PID `17284`).
+- Closed duplicate/orphan worker session from earlier run:
+- Closed `powershell.exe` PID `15544` (launcher shell).
+- Closed `python.exe` PID `18548` (duplicate `worker.py` child).
 
 ## Completed Stages
 
@@ -99,4 +117,6 @@
 
 ## Next Step
 
-- Final release approval and production rollout using the sign-off package.
+- Execute Local-First CPU validation cycle per `docs/LOCAL_STAGE10_CPU_PLAN_HE.md`.
+- Keep release gate green (`release_candidate_check`) while iterating locally.
+- Move to GPU server rollout after local exit criteria are met.

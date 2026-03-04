@@ -51,6 +51,28 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+class FrontendNoCacheMiddleware(BaseHTTPMiddleware):
+    def __init__(self, app, enabled: bool = True):
+        super().__init__(app)
+        self.enabled = enabled
+
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        if not self.enabled:
+            return response
+
+        if request.method.upper() != "GET":
+            return response
+
+        path = request.url.path or "/"
+        if path == "/" or path.startswith("/static/"):
+            response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+            response.headers["Pragma"] = "no-cache"
+            response.headers["Expires"] = "0"
+
+        return response
+
+
 class HttpsEnforcerMiddleware(BaseHTTPMiddleware):
     def __init__(self, app, enforce_https: bool = False):
         super().__init__(app)

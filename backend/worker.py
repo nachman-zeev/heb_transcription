@@ -136,7 +136,12 @@ def process_job(engine: IvritWhisperEngine, job_id: str, worker_id: str) -> None
             raise
 
         duration = output.audio_duration_sec if output.audio_duration_sec > 0 else float(job.source_duration_sec)
-        aligned_words, alignment_status = align_words_robust(output.text, output.words, duration_sec=duration)
+        aligned_words, alignment_status = align_words_robust(
+            output.text,
+            output.words,
+            duration_sec=duration,
+            speech_segments=output.speech_segments,
+        )
         diarized = diarize_words(
             aligned_words,
             total_channels=source_channel_count,

@@ -49,7 +49,8 @@ def _env_str(name: str, default: str) -> str:
     raw = os.getenv(name)
     if raw is None:
         return default
-    return raw
+    value = raw.strip()
+    return value if value else default
 
 
 def _env_str_or_file(name: str, default: str) -> str:
@@ -113,6 +114,7 @@ class Settings(BaseModel):
     estimated_cost_currency: str = "USD"
 
     allowed_extensions: tuple[str, ...] = Field(default=(".wav", ".mp3"))
+    uploads_dir: str = "./data/uploads"
 
     cors_allowed_origins: tuple[str, ...] = Field(default=("http://localhost:8080", "http://127.0.0.1:8080"))
     security_headers_enabled: bool = True
@@ -166,6 +168,7 @@ def get_settings() -> Settings:
         estimated_cost_per_audio_minute=_env_float("ESTIMATED_COST_PER_AUDIO_MINUTE", 0.0),
         estimated_cost_currency=_env_str("ESTIMATED_COST_CURRENCY", "USD"),
         allowed_extensions=_env_csv("ALLOWED_EXTENSIONS", (".wav", ".mp3")),
+        uploads_dir=_env_str("UPLOADS_DIR", "./data/uploads"),
         cors_allowed_origins=_env_csv("CORS_ALLOWED_ORIGINS", ("http://localhost:8080", "http://127.0.0.1:8080")),
         security_headers_enabled=_env_bool("SECURITY_HEADERS_ENABLED", True),
         enforce_https=_env_bool("ENFORCE_HTTPS", False),

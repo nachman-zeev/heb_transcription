@@ -1,15 +1,17 @@
 ﻿from __future__ import annotations
 
 import mimetypes
+import re
 from datetime import date, datetime, time, timezone
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse, Response
 from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_user, get_current_user_from_token_query
+from app.core.config import get_settings
 from app.database import get_db
 from app.models import Job, JobChannel, User
 from app.schemas import (
@@ -24,9 +26,11 @@ from app.schemas import (
 from app.services.exports import render_docx, render_srt, render_txt
 from app.services.job_service import create_job_for_file
 from app.services.media import discover_audio_files
+from app.services.timestamp_repair import repair_job_timestamps_if_needed
 
 
 router = APIRouter(prefix="/jobs", tags=["jobs"])
+SAFE_FILENAME_RE = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def _to_day_start(d: date) -> datetime:
@@ -104,6 +108,13 @@ def _get_job_for_tenant(db: Session, job_id: str, tenant_id: int) -> Job:
     return job
 
 
+def _safe_upload_filename(name: str) -> str:
+    base = Path(name or "upload.wav").name
+    if not base:
+        base = "upload.wav"
+    return SAFE_FILENAME_RE.sub("_", base)
+
+
 @router.post("", response_model=JobResponse)
 def create_job(
     payload: JobCreateRequest,
@@ -118,6 +129,39 @@ def create_job(
         raise HTTPException(status_code=400, detail="Unsupported file extension")
 
     job = create_job_for_file(db, user, path, priority=payload.priority)
+    job = _get_job_for_tenant(db, job.id, user.tenant_id)
+    return _job_to_schema(job)
+
+
+@router.post("/upload", response_model=JobResponse)
+def create_job_upload(
+    file: UploadFile = File(...),
+    priority: int = Form(default=100),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> JobResponse:
+    filename = _safe_upload_filename(file.filename or "upload.wav")
+    suffix = Path(filename).suffix.lower()
+    allowed = {e.lower() for e in get_settings().allowed_extensions}
+    if suffix not in allowed:
+        raise HTTPException(status_code=400, detail="Unsupported file extension")
+
+    uploads_root = Path(get_settings().uploads_dir).resolve()
+    tenant_dir = uploads_root / f"tenant_{user.tenant_id}"
+    tenant_dir.mkdir(parents=True, exist_ok=True)
+
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
+    out_path = tenant_dir / f"{stamp}_{filename}"
+
+    with out_path.open("wb") as out:
+        while True:
+            chunk = file.file.read(1024 * 1024)
+            if not chunk:
+                break
+            out.write(chunk)
+    file.file.close()
+
+    job = create_job_for_file(db, user, out_path, priority=priority)
     job = _get_job_for_tenant(db, job.id, user.tenant_id)
     return _job_to_schema(job)
 
@@ -232,4 +276,7 @@ def export_job(
 @router.get("/{job_id}", response_model=JobResponse)
 def get_job(job_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> JobResponse:
     job = _get_job_for_tenant(db, job_id, user.tenant_id)
+    if repair_job_timestamps_if_needed(db, job):
+        db.flush()
+        job = _get_job_for_tenant(db, job_id, user.tenant_id)
     return _job_to_schema(job)

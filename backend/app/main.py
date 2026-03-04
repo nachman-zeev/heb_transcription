@@ -18,6 +18,7 @@ from app.api.routes_ws import router as ws_router
 from app.core.config import get_settings
 from app.database import init_db
 from app.middleware.production import (
+    FrontendNoCacheMiddleware,
     HttpsEnforcerMiddleware,
     RateLimitMiddleware,
     RequestIdMiddleware,
@@ -42,6 +43,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 app.add_middleware(RequestIdMiddleware)
+app.add_middleware(FrontendNoCacheMiddleware, enabled=True)
 app.add_middleware(SecurityHeadersMiddleware, enabled=settings.security_headers_enabled)
 app.add_middleware(HttpsEnforcerMiddleware, enforce_https=settings.enforce_https)
 app.add_middleware(
