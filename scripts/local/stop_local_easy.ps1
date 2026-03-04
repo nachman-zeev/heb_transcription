@@ -4,8 +4,10 @@ $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $RuntimeDir = Join-Path $RepoRoot "data\local_runtime"
 $ApiPidFile = Join-Path $RuntimeDir "api.pid"
 $WorkerPidFile = Join-Path $RuntimeDir "worker.pid"
+$WatchdogPidFile = Join-Path $RuntimeDir "watchdog.pid"
 $ApiPattern = "uvicorn app.main:app --host 127.0.0.1 --port 8090"
 $WorkerPattern = "worker.py --node-id local-cpu-node"
+$WatchdogPattern = "idle_shutdown_watchdog.py"
 
 function Stop-ByPidFile {
   param([string]$Path)
@@ -31,7 +33,9 @@ function Stop-ByPattern {
 
 Stop-ByPidFile $ApiPidFile
 Stop-ByPidFile $WorkerPidFile
+Stop-ByPidFile $WatchdogPidFile
 Stop-ByPattern $ApiPattern
 Stop-ByPattern $WorkerPattern
+Stop-ByPattern $WatchdogPattern
 
 Write-Output "Local system stopped."
